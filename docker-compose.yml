@@ -1,0 +1,53 @@
+services:
+  app:
+    build: .
+    container_name: streamlit_app
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+  
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./nginx/conf/app.conf.template:/etc/nginx/templates/app.conf.template
+      - ./scripts/nginx-entrypoint.sh:/entrypoint.sh
+      - ./.env:/app/.env
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      - app
+
+  certbot-init:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+      - ./scripts/init-letsencrypt.sh:/init.sh
+      - ./.env:/app/.env
+    entrypoint: ["/bin/sh", "/init.sh"]
+    depends_on:
+      - nginx
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+      - ./.env:/app/.env
+    entrypoint: >
+      /bin/sh -c "while :; do
+      sleep 12h;
+      certbot renew --webroot -w /var/www/certbot;
+      done"
