@@ -1,12 +1,12 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
+from db import get_connection, release_connection
 
-DATABASE_URL = ""
-
+@st.cache_data(ttl=60)
 def get_complete_groups():
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_connection()
         query = """
             SELECT 
                 g.id as "Group ID", 
@@ -20,11 +20,14 @@ def get_complete_groups():
             GROUP BY g.id, g.team_leader_email, g.topic_introduction
         """
         df = pd.read_sql(query, conn)
-        conn.close()
         return df
     except Exception as e:
         st.error(f"Database Error: {e}")
         return pd.DataFrame()
+    finally:
+        if conn:
+            conn.rollback()
+            release_connection(conn)
 
 st.title("Complete Groups")
 st.info("The following groups have met all registration and diversity requirements.")

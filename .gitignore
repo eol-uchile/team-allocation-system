@@ -4,3 +4,5 @@ venv/
 .env
 .pdf
 .txt
+.streamlit/secrets.toml
+*.pyc
