@@ -1,12 +1,11 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
-
-DATABASE_URL = ""
+from db import get_connection, release_connection
 
 def get_incomplete_groups():
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_connection()
         query = """
             SELECT 
                 g.id as "Group ID", 
@@ -20,11 +19,14 @@ def get_incomplete_groups():
             GROUP BY g.id, g.topic_introduction, g.expected_members
         """
         df = pd.read_sql(query, conn)
-        conn.close()
         return df
     except Exception as e:
         st.error(f"Database Error: {e}")
         return pd.DataFrame()
+    finally:
+        if conn:
+            conn.rollback()
+            release_connection(conn)
 
 st.title("Incomplete Groups")
 st.markdown("These groups are currently forming.")

@@ -1,23 +1,25 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
-
-DATABASE_URL = ""
+from db import get_connection, release_connection
 
 def get_individual_data():
     """Fetches all registered students from the DB"""
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_connection()
         query = """
             SELECT name, nationality, major, university, gender, introductory_text 
             FROM individual_register
         """
         df = pd.read_sql(query, conn)
-        conn.close()
         return df
     except Exception as e:
         st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
+    finally:
+        if conn:
+            conn.rollback()
+            release_connection(conn)
 
 def main():
     st.title("👤 Individual Member Directory")
