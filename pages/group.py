@@ -38,7 +38,7 @@ def check_registration_access():
 
     if st.session_state.public_authenticated:
         return True
-
+    st.set_page_config(page_title="Poverty Alleviation Challenge Registration", page_icon="📋")
     st.title("Registration Access")
     st.write("Please enter the password to access the registration form.")
         
@@ -59,6 +59,8 @@ def check_registration_access():
 def main():
     if not check_registration_access():
         st.stop()
+
+    st.set_page_config(page_title="Group Registration - Poverty Alleviation Challenge Registration", page_icon="📋")
 
     st.title("Group Registration")
 
