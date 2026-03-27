@@ -1,5 +1,5 @@
 import streamlit as st
-from pages import indiv, group, manager
+from pages import indiv, group, manager, optout
 
 st.set_page_config(layout="centered", initial_sidebar_state="collapsed")
 
@@ -19,7 +19,10 @@ def show_home():
 
 current_page = st.query_params.get("page", "home")
 
-if current_page == "home":
+if current_page == "optout":
+    optout.main()
+
+elif current_page == "home":
     show_home()
 
 elif current_page == "indiv":
