@@ -39,10 +39,10 @@ def update_table(df_to_save, table_name):
     try:
         conn = get_connection()
         cur = conn.cursor()
-        if table_name == "individual_register":
+        if table_name == "members":
             for _, row in df_to_save.iterrows():
                 cur.execute("""
-                    UPDATE individual_register 
+                    UPDATE members 
                     SET name=%s, email=%s, university=%s, nationality=%s, 
                         gender=%s, major=%s, introductory_text=%s 
                     WHERE id=%s
@@ -125,7 +125,7 @@ def main():
         conn = None
         try:
             conn = get_connection()
-            df = pd.read_sql("SELECT * FROM individual_register ORDER BY id ASC", conn)
+            df = pd.read_sql("SELECT * FROM members ORDER BY id ASC", conn)
         finally:
             if conn:
                 release_connection(conn)
@@ -150,7 +150,7 @@ def main():
             hide_index=True
         )
         if st.button("💾 Save Individual Changes", type="primary"):
-            confirm_save(edited_df, "individual_register")
+            confirm_save(edited_df, "members")
 
     elif st.session_state.view == "groups":
         if st.button("← Back to Home"):
