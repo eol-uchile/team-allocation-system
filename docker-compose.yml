@@ -8,6 +8,8 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
     restart: unless-stopped
   
   nginx:
@@ -19,10 +21,11 @@ services:
       - "443:443"
     environment:
       - DOMAIN=${DOMAIN}
+    env_file:
+      - .env
     volumes:
       - ./nginx/conf/app.conf.template:/etc/nginx/templates/app.conf.template
       - ./scripts/nginx-entrypoint.sh:/entrypoint.sh
-      - ./.env:/app/.env
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
@@ -31,21 +34,23 @@ services:
 
   certbot-init:
     image: certbot/certbot
+    env_file:
+      - .env
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
       - ./scripts/init-letsencrypt.sh:/init.sh
-      - ./.env:/app/.env
     entrypoint: ["/bin/sh", "/init.sh"]
     depends_on:
       - nginx
 
   certbot:
     image: certbot/certbot
+    env_file:
+      - .env
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
-      - ./.env:/app/.env
     entrypoint: >
       /bin/sh -c "while :; do
       sleep 12h;

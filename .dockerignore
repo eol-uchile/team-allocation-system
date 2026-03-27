@@ -1,0 +1,10 @@
+.git
+.env
+.env.example
+nginx/
+certbot/
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db

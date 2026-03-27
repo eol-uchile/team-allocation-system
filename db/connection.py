@@ -1,7 +1,8 @@
+import os
 import streamlit as st
 from psycopg2 import pool
 
-DATABASE_URL = st.secrets["DATABASE_URL"]
+DATABASE_URL = os.environ.get("DATABASE_URL") or st.secrets.get("DATABASE_URL")
 
 @st.cache_resource
 def get_pool():
