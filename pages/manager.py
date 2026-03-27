@@ -3,7 +3,7 @@ import pandas as pd
 from db import get_connection, release_connection
 import os
 
-MANAGER_PASSWORD = os.getenv("MANAGER_PASSWORD", "admin123")
+MANAGER_PASSWORD = st.secrets["MANAGER_PASSWORD"]
 
 def check_password():
     if "authenticated" not in st.session_state:
