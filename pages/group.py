@@ -1,15 +1,56 @@
 import streamlit as st
 import psycopg2
-from psycopg2.extras import execute_values
 from db import get_connection, release_connection
 import os
 import time
+import secrets
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 NATIONALITIES = ["Select...", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Côte d'Ivoire", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"] 
 GENDERS = ["Select...", "Male", "Female"]
 EDUCATION_LEVELS = ["Select...", "Undergraduate", "Graduate", "PhD", "Other"]
 FORMS_PASSWORD = st.secrets["FORMS_PASSWORD"]
 
+
+def send_group_emails(leader_email, members_list, group_name):
+    sender_email = st.secrets["EMAIL"]
+    app_password = st.secrets["EMAIL_PASSWORD"]
+    domain = os.getenv("DOMAIN", "localhost:8501")
+
+    # Email to the group leader
+    leader_msg = MIMEMultipart()
+    leader_msg["Subject"] = f"Group Registered: {group_name}"
+    leader_msg.attach(MIMEText(f"Hi! Your group '{group_name}' is registered. Your members have been notified.", "plain"))
+    
+    # Emails to the other group members
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender_email, app_password)
+        
+        # Send to Leader
+        server.sendmail(sender_email, leader_email, leader_msg.as_string())
+        
+        # Send to each member (except leader)
+        for member in members_list:
+            token = member['token']
+            opt_out_link = f"http://{domain}/?page=optout&token={token}"
+            
+            m_msg = MIMEMultipart()
+            m_msg["To"] = member['email']
+            m_msg["Subject"] = f"Added to group: {group_name}"
+            body = f"Hi {member['name']},\n\nYou've been added to '{group_name}'. If this was a mistake, click here to opt-out: {opt_out_link}"
+            m_msg.attach(MIMEText(body, "plain"))
+            
+            server.sendmail(sender_email, member['email'], m_msg.as_string())
+            
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"SMTP Error: {e}")
+        return False
 
 def render_member_form(label, key_prefix):
     st.markdown(f"#### {label}")
@@ -108,14 +149,28 @@ def main():
 
     if st.button("Submit Group Registration", type="primary", use_container_width=True):
         all_members = [leader_data] + member_data_list
-        incomplete = any(m['name'] == "" or m['email'] == "" or m['nat'] == "Select..." for m in all_members)
-        
-        if incomplete:
+
+        member_fields_incomplete = any(
+            m['name'].strip() == "" or 
+            m['email'].strip() == "" or 
+            m['nat'] == "Select..." or 
+            m['gender'] == "Select..." or 
+            m['education_level'] == "Select..." 
+            for m in all_members
+        )
+
+        group_fields_incomplete = any([
+            group_name.strip() == "",
+            description_existing_members.strip() == "",
+            expected_members.strip() == "",
+            topic_introduction.strip() == ""
+        ])
+
+        if member_fields_incomplete or group_fields_incomplete:
             st.error("Please fill the fields for all members.")
         else:
             try:
                 conn = get_connection()
-                
                 cur = conn.cursor()
 
                 unique_nations = set(m['nat'] for m in all_members)
@@ -134,16 +189,24 @@ def main():
                 ))
                 group_id = cur.fetchone()[0]
 
-                member_rows = [
-                    (group_id, m['name'], m['gender'], m['nat'], 
-                     m['university'], m['education_level'], m['major'], m['email'])
-                    for m in all_members
-                ]
-                
-                member_query = "INSERT INTO members (group_link, name, gender, nationality, university, education_level, major, email) VALUES %s"
-                execute_values(cur, member_query, member_rows)
+                cur.execute("""
+                    INSERT INTO members (group_link, name, gender, nationality, university, education_level, major, email, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Leader')
+                """, (group_id, leader_data['name'], leader_data['gender'], leader_data['nat'], 
+                      leader_data['university'], leader_data['education_level'], leader_data['major'], leader_data['email']))
+
+                # Process Members
+                for m in member_data_list:
+                    token = secrets.token_urlsafe(16)
+                    m['token'] = token
+                    cur.execute("""
+                        INSERT INTO members (group_link, name, gender, nationality, university, education_level, major, email, opt_out_token, status)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Member')
+                    """, (group_id, m['name'], m['gender'], m['nat'], m['university'], 
+                          m['education_level'], m['major'], m['email'], token))
 
                 conn.commit()
+                send_group_emails(leader_data['email'], member_data_list, group_name)
                 registration_successful = True
 
             except psycopg2.errors.UniqueViolation as e:
@@ -151,7 +214,7 @@ def main():
                 if "groups_group_name_key" in str(e):
                     st.warning(f"The group name '{group_name}' is already taken. Please choose another.")
                 else:
-                    st.warning("One of the email addresses provided is already registered.")
+                    st.warning("One of the emails is already registered.")
             except Exception as e:
                 st.error(f"The form couldn't be send, try again later.")
                 if conn: 
