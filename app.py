@@ -1,41 +1,39 @@
 import streamlit as st
+from pages import indiv, group, manager
 
-# Define the Pages
-home_page = st.Page("app.py", title="Home", icon="🏠", default=True)
-indiv_reg = st.Page("pages/indiv.py", title="Individual Registration", icon="👤")
-group_reg = st.Page("pages/group.py", title="Group Registration", icon="👥")
-view_indiv_data = st.Page("pages/indiv_dashboard.py", title="Check Individual Registrations")
-complete_view = st.Page("pages/complete_groups_dashboard.py", title="Complete Groups")
-incomplete_view = st.Page("pages/incomplete_groups_dashboard.py", title="Incomplete Groups")
+st.set_page_config(layout="centered", initial_sidebar_state="collapsed")
 
-# Initialize Navigation
-pg = st.navigation([
-    home_page, 
-    indiv_reg, 
-    group_reg, 
-    view_indiv_data, 
-    complete_view, 
-    incomplete_view
-])
-
-
-if st.get_option("client.showSidebarNavigation") is False:
-    pass
-
-# Landing Page Content
 def show_home():
-    st.title("Welcome to the Course Registration")
-    st.write("Text.")
-    
+    st.title("Course Registration")
+    st.write("Please choose your registration type:")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Individual Registration"):
-            st.switch_page(indiv_reg)
+        if st.button("Individual Registration", use_container_width=True):
+            st.query_params["page"] = "indiv"
+            st.rerun()
     with col2:
-        if st.button("Group Registration"):
-            st.switch_page(group_reg)
+        if st.button("Group Registration", use_container_width=True):
+            st.query_params["page"] = "group"
+            st.rerun()
 
-if pg == home_page:
+current_page = st.query_params.get("page", "home")
+
+if current_page == "home":
     show_home()
-else:
-    pg.run()
+
+elif current_page == "indiv":
+    if st.button("← Back to Home"):
+        st.query_params.clear()
+        st.rerun()
+    indiv.main()
+
+elif current_page == "group":
+    if st.button("← Back to Home"):
+        st.query_params.clear()
+        if 'extra_members' in st.session_state:
+            del st.session_state.extra_members
+        st.rerun()
+    group.main()
+
+elif current_page == "manager":
+    manager.main()
