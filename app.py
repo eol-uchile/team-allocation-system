@@ -4,7 +4,8 @@ from pages import indiv, group, manager
 st.set_page_config(layout="centered", initial_sidebar_state="collapsed")
 
 def show_home():
-    st.title("Course Registration")
+    st.title("Poverty Alleviation Challenge Registration")
+    st.set_page_config(page_title="Poverty Alleviation Challenge Registration", page_icon="📋")
     st.write("Please choose your registration type:")
     col1, col2 = st.columns(2)
     with col1:
