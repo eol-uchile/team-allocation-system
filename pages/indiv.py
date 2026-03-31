@@ -3,12 +3,52 @@ import psycopg2
 from db import get_connection, release_connection
 import os
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 NATIONALITIES = ["Select...", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Côte d'Ivoire", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"] 
 GENDERS = ["Select...", "Male", "Female"]
 EDUCATION_LEVELS = ["Select...", "Undergraduate", "Graduate", "PhD", "Other"]
 FORMS_PASSWORD = st.secrets["FORMS_PASSWORD"]
 
+with open("./templates/indiv_template.html", "r") as f:
+    INDIV_HTML_TEMPLATE = f.read()
+
+
+def send_gmail_confirmation(recipient_email, recipient_name):
+    """Sends a confirmation email using Gmail SMTP and an App Password."""
+    # Settings for Gmail
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    sender_email = st.secrets["EMAIL"]
+    app_password = st.secrets["EMAIL_PASSWORD"]
+
+    if not sender_email or not app_password:
+        st.error("System Error: Email credentials not configured.")
+        return False
+
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = recipient_email
+    msg["Subject"] = "Registration Confirmed - Poverty Alleviation Challenge"
+
+    body = INDIV_HTML_TEMPLATE.format(
+                name=recipient_name
+            )
+    msg.attach(MIMEText(body, "html"))
+
+    try:
+        # Connect to Gmail
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls() # Required for Gmail
+        server.login(sender_email, app_password)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Gmail SMTP Error: {e}")
+        return False
 
 def render_individual_form():
     st.markdown("#### Personal Information")
@@ -74,10 +114,19 @@ def main():
 
     if st.button("Submit Registration", type="primary", use_container_width=True):
         # Validation
-        incomplete = any(
-            user_data[field] == "" or user_data[field] == "Select..." 
-            for field in ["name", "email", "nat", "gender"]
-        )
+        incomplete = any([
+            user_data["name"].strip() == "",
+            user_data["email"].strip() == "",
+            user_data["university"].strip() == "",
+            user_data["major"].strip() == "",
+            user_data["nat"] == "Select...",
+            user_data["gender"] == "Select...",
+            user_data["ed_level"] == "Select...",
+            interest_desc.strip() == ""
+        ])
+        
+        if incomplete:
+            st.error("Please fill in all fields and make sure all dropdown selections are made.")
         
         if incomplete:
             st.error("Please fill in all required fields.")
@@ -101,6 +150,7 @@ def main():
                 ))
 
                 conn.commit()
+                email_sent = send_gmail_confirmation(user_data['email'], user_data['name'])
                 registration_successful = True
                 
             except psycopg2.errors.UniqueViolation:
@@ -119,10 +169,16 @@ def main():
 
     if registration_successful:
         st.success("Registration Successful!")
-        st.write("Redirecting you to the home page in 5 seconds...")
+        if email_sent:
+            st.info(f"A confirmation email has been sent to {user_data['email']}.")
+        else:
+            st.warning("Registration saved, but we couldn't send the confirmation email.")
+
+        st.write("Redirecting to home in 5 seconds...")
+        time.sleep(5)
+        
         st.session_state.page = "home"
         st.query_params.clear() 
-        time.sleep(5)
         st.rerun()
 
 if __name__ == "__main__":

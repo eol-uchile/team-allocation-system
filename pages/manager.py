@@ -66,7 +66,13 @@ def update_table(df_to_save, table_name):
     except Exception as e:
         if conn:
             conn.rollback()
-        st.error(f"Database Error: {e}")
+        st.error("Connection Timeout")
+        st.info("The database connection timed out due to inactivity. Please refresh the page to continue.")
+        if st.button("Refresh Page"):
+            st.rerun()
+        # Stops the traceback from showing when there is an error with the table queries by
+        # stopping the app
+        st.stop()
     finally:
         if conn:
             release_connection(conn)
@@ -126,6 +132,14 @@ def main():
         try:
             conn = get_connection()
             df = pd.read_sql("SELECT * FROM members ORDER BY id ASC", conn)
+        except Exception as e:
+            print(f"Database Error: {e}")
+            st.error("Connection Lost")
+            st.info("The database connection timed out. Please refresh the page to reconnect.")
+            
+            if st.button("Refresh Page"):
+                st.rerun()
+            st.stop()
         finally:
             if conn:
                 release_connection(conn)
