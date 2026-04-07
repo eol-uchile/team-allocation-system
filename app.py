@@ -1,20 +1,46 @@
 import streamlit as st
-from pages import indiv, group, manager, optout
+from pages import accept_member, indiv, group, manager, optout, join_group, indiv_directory, group_directory, accept_member, group_info
 
-st.set_page_config(layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Poverty Alleviation Challenge Registration", page_icon="📋", layout="centered", initial_sidebar_state="collapsed")
 
 def show_home():
     st.title("Poverty Alleviation Challenge Registration")
-    st.set_page_config(page_title="Poverty Alleviation Challenge Registration", page_icon="📋")
-    st.write("Please choose your registration type:")
-    col1, col2 = st.columns(2)
-    with col1:
+    
+    # Registration Section
+    st.markdown("### 📝 Registration & Groups")
+    st.write("Choose how you would like to participate:")
+    reg_col1, reg_col2, reg_col3 = st.columns(3)
+    
+    with reg_col1:
         if st.button("Individual Registration", use_container_width=True):
             st.query_params["page"] = "indiv"
             st.rerun()
-    with col2:
+            
+    with reg_col2:
         if st.button("Group Registration", use_container_width=True):
             st.query_params["page"] = "group"
+            st.rerun()
+            
+    with reg_col3:
+        if st.button("Join a Group", use_container_width=True):
+            st.query_params["page"] = "join_group"
+            st.rerun()
+
+    st.divider()
+
+    # Directories Section
+    st.markdown("### 🔍 Directories")
+    st.write("View registered participants and existing teams:")
+    dir_col1, dir_col2 = st.columns(2)
+    
+    with dir_col1:
+        if st.button("Individual Directory", use_container_width=True):
+            st.query_params["page"] = "indiv_directory"
+            st.rerun()
+            
+    with dir_col2:
+        if st.button("Group Directory", use_container_width=True):
+            st.query_params["page"] = "group_directory"
             st.rerun()
 
 current_page = st.query_params.get("page", "home")
@@ -38,6 +64,30 @@ elif current_page == "group":
             del st.session_state.extra_members
         st.rerun()
     group.main()
+
+elif current_page == "join_group":
+    if st.button("← Back to Home"):
+        st.query_params.clear()
+        st.rerun()
+    join_group.main()
+
+elif current_page == "indiv_directory":
+    if st.button("← Back to Home"):
+        st.query_params.clear()
+        st.rerun()
+    indiv_directory.main()
+
+elif current_page == "group_directory":
+    if st.button("← Back to Home"):
+        st.query_params.clear()
+        st.rerun()
+    group_directory.main()
+
+elif current_page == "accept_member":
+    accept_member.main()
+
+elif current_page == "group_info":
+    group_info.main()
 
 elif current_page == "manager":
     manager.main()
