@@ -8,7 +8,6 @@ def main():
     if st.session_state.opt_out_done:
         st.title("Opt-out Successful")
         st.success("You have been successfully removed from the group.")
-        st.info("Your individual registration remains active. You can now close this window.")
         return
 
     token = st.query_params.get("token")
@@ -35,30 +34,36 @@ def main():
         st.warning(f"Hello {member_name}, are you sure you want to leave your assigned group?")
         
         if st.button("Confirm Opt-out", type="primary", use_container_width=True):
-            cur.execute("SELECT group_link FROM members WHERE id = %s", (member_id,))
-            group_id = cur.fetchone()[0]
+            # Fetch group_id and registration_type
+            cur.execute("SELECT group_link, registration_type FROM members WHERE id = %s", (member_id,))
+            res = cur.fetchone()
+            group_id, reg_type = res[0], res[1]
 
-            # Perform the opt-out
-            cur.execute("""
-                UPDATE members 
-                SET group_link = NULL, opt_out_token = NULL 
-                WHERE id = %s
-            """, (member_id,))
-            
-            if group_id:
-                # Count remaining members and unique nationalities
+            # Conditional Removal or Update
+            if reg_type == 'group_added':
+                # Remove them entirely if they were only added via the group form
+                cur.execute("DELETE FROM members WHERE id = %s", (member_id,))
+            else:
+                # Keep them but reset their group status if they were a pre-registered individual
                 cur.execute("""
-                    SELECT COUNT(id), COUNT(DISTINCT nationality) 
+                    UPDATE members 
+                    SET group_link = NULL, opt_out_token = NULL, status = '' 
+                    WHERE id = %s
+                """, (member_id,))
+            
+            # Recalculate Group Completion based on university_country
+            if group_id:
+                cur.execute("""
+                    SELECT COUNT(id), COUNT(DISTINCT university_country) 
                     FROM members 
                     WHERE group_link = %s
                 """, (group_id,))
                 
-                count, nationalities = cur.fetchone()
+                count, distinct_uni_countries = cur.fetchone()
                 
-                # Check if the conditions for a complete group are still met
-                is_complete = (count > 1 and nationalities > 1)
+                # Check if group still meets requirements (2+ people, 2+ uni countries)
+                is_complete = (count >= 2 and distinct_uni_countries >= 2)
                 
-                # Update the groups table accordingly
                 cur.execute("""
                     UPDATE groups 
                     SET is_complete = %s 
@@ -66,7 +71,6 @@ def main():
                 """, (is_complete, group_id))
             
             conn.commit()
-            
             st.session_state.opt_out_done = True
             st.rerun()
 

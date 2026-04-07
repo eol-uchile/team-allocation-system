@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from db import get_connection, release_connection
-import os
 
 MANAGER_PASSWORD = st.secrets["MANAGER_PASSWORD"]
 
@@ -62,7 +61,6 @@ def update_table(df_to_save, table_name):
                     row['description_existing_members'], row['expected_members'], row['id']
                 ))
         conn.commit()
-        cur.close()
     except Exception as e:
         if conn:
             conn.rollback()
@@ -74,6 +72,8 @@ def update_table(df_to_save, table_name):
         # stopping the app
         st.stop()
     finally:
+        if cur:
+            cur.close()
         if conn:
             release_connection(conn)
 
@@ -151,15 +151,33 @@ def main():
             "nationality": st.column_config.TextColumn("Nationality"),
             "gender": st.column_config.TextColumn("Gender"),
             "university": st.column_config.TextColumn("University"),
+            "department": st.column_config.TextColumn("Department"),
             "major": st.column_config.TextColumn("Major"),
+            "education_level": st.column_config.TextColumn("Educational level"),
+            "department": st.column_config.TextColumn("Department"),
+            "group_link": st.column_config.TextColumn("Group Id"),
+            "department": st.column_config.TextColumn("Department"),
             "introductory_text": st.column_config.TextColumn("Introductory Text", width="large"),
+            "opt_out_token": None,
+            "application_token": None,
+            "registration_type": None,
+            "university_country": None,
+            "phone_number": st.column_config.TextColumn("Phone number"),
+            "personal_profile": st.column_config.TextColumn("Personal Profile"),
+            "teammate_profile": st.column_config.TextColumn("Teammate Profile"),
+            "research_topic": st.column_config.TextColumn("Research Topic"),
+            "previous_participation": st.column_config.TextColumn("Previous Participation"),
+            "previous_award": st.column_config.TextColumn("Previous Award"),
+            "project_name": st.column_config.TextColumn("Project Name"),
+            "reusing_project": st.column_config.TextColumn("Reusing Project")
+
         }
         
         edited_df = st.data_editor(
-            df, 
+            df,
             column_config=indiv_config,
-            use_container_width=True, 
-            height=600, 
+            use_container_width=True,
+            height=600,
             key="indiv_editor",
             hide_index=True
         )
@@ -188,17 +206,21 @@ def main():
             "is_complete": None,
             "Status": st.column_config.TextColumn("Status", disabled=True),
             "group_name": st.column_config.TextColumn("Group Name", width="medium"),
-            "description_existing_members": st.column_config.TextColumn("Existing members description", width="large"),
-            "expected_members": st.column_config.TextColumn("Expected Members Introduction", width="large"),
+            "description_existing_members": st.column_config.TextColumn("Team Profile", width="large"),
+            "expected_members": st.column_config.TextColumn("Expected Teammates Profile", width="large"),
             "topic_introduction": st.column_config.TextColumn("Topic Introduction", width="large"),
-            "team_leader_email": st.column_config.TextColumn("Leader Email", disabled=True)
+            "team_leader_email": st.column_config.TextColumn("Leader Email", disabled=True),
+            "previous_participation": st.column_config.TextColumn("Previous Participation"),
+            "previous_award": st.column_config.TextColumn("Previous Award"),
+            "project_name": st.column_config.TextColumn("Project Name"),
+            "reusing_project": st.column_config.TextColumn("Reusing Project")
         }
 
         edited_df = st.data_editor(
-            df, 
-            column_config=group_config, 
-            use_container_width=True, 
-            height=600, 
+            df,
+            column_config=group_config,
+            use_container_width=True,
+            height=600,
             key="group_editor",
             hide_index=True
         )
