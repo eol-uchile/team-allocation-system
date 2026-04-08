@@ -43,27 +43,29 @@ def update_table(df_to_save, table_name):
                 cur.execute("""
                     UPDATE members 
                     SET name=%s, email=%s, university=%s, nationality=%s, 
-                        gender=%s, major=%s, personal_profile=%s 
+                        gender=%s, major=%s, personal_profile=%s, department=%s,
+                        phone_number=%s, teammate_profile=%s, research_topic=%s, previous_participation=%s, previous_award=%s, project_name=%s, reusing_project=%s
                     WHERE id=%s
                 """, (
                     row['name'], row['email'], row['university'], row['nationality'],
-                    row['gender'], row['major'], row['personal_profile'], row['id']
+                    row['gender'], row['major'], row['personal_profile'], row['department'], row['phone_number'], row['teammate_profile'], row['research_topic'], row['previous_participation'], row['previous_award'], row['project_name'], row['reusing_project'], row['id']
                 ))
         elif table_name == "groups":
             for _, row in df_to_save.iterrows():
                 cur.execute("""
                     UPDATE groups 
                     SET group_name=%s, topic_introduction=%s, 
-                        description_existing_members=%s, expected_members=%s 
+                        description_existing_members=%s, expected_members=%s, previous_participation=%s, previous_award=%s, project_name=%s, reusing_project=%s
                     WHERE id=%s
                 """, (
                     row['group_name'], row['topic_introduction'], 
-                    row['description_existing_members'], row['expected_members'], row['id']
+                    row['description_existing_members'], row['expected_members'], row['previous_participation'], row['previous_award'], row['project_name'], row['reusing_project'], row['id']
                 ))
         conn.commit()
     except Exception as e:
         if conn:
             conn.rollback()
+            print(e)
         st.error("Connection Timeout")
         st.info("The database connection timed out due to inactivity. Please refresh the page to continue.")
         if st.button("Refresh Page"):
