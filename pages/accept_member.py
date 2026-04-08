@@ -2,40 +2,49 @@ import streamlit as st
 from db import get_connection, release_connection
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import smtplib
-
+import base64
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
 
 def send_application_result_email(recipient_email, recipient_name, group_name, accepted=True):
-    platform_email = st.secrets["EMAIL"]
-    app_password = st.secrets["EMAIL_PASSWORD"]
-
-    msg = MIMEMultipart()
-    msg["From"] = platform_email
-    msg["To"] = recipient_email
-    msg["Subject"] = f"Update: Your application to {group_name}"
-
-    status_text = "accepted" if accepted else "declined"
-    color = "#28a745" if accepted else "#dc3545"
-
-    body = f"""
-    <div style="font-family: sans-serif; color: #222;">
-        <p>Hi {recipient_name},</p>
-        <p>The group leader of <strong>{group_name}</strong> has reviewed your application.</p>
-        <p>Your request has been <strong style="color: {color};">{status_text}</strong>.</p>
-        <p>Best regards,<br>The Poverty Alleviation Challenge Team</p>
-    </div>
-    """
-    
-    msg.attach(MIMEText(body, "html"))
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(platform_email, app_password)
-        server.send_message(msg)
-        server.quit()
+        # 1. Setup Gmail API Service
+        creds_info = st.secrets["GMAIL_TOKEN"]
+        creds = Credentials.from_authorized_user_info(creds_info)
+        service = build('gmail', 'v1', credentials=creds)
+        
+        platform_email = st.secrets["EMAIL"]
+
+        # 2. Prepare the Message Content
+        msg = MIMEMultipart()
+        msg["From"] = platform_email
+        msg["To"] = recipient_email
+        msg["Subject"] = f"Update: Your application to {group_name}"
+
+        status_text = "accepted" if accepted else "declined"
+        color = "#28a745" if accepted else "#dc3545"
+
+        body = f"""
+        <div style="font-family: sans-serif; color: #222;">
+            <p>Hi {recipient_name},</p>
+            <p>The group leader of <strong>{group_name}</strong> has reviewed your application.</p>
+            <p>Your request has been <strong style="color: {color};">{status_text}</strong>.</p>
+            <p>Best regards,<br>The Poverty Alleviation Challenge Team</p>
+        </div>
+        """
+        msg.attach(MIMEText(body, "html"))
+
+        # 3. Encode the message for Gmail API
+        raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        
+        # 4. Send the message
+        service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+        
         return True
+
     except Exception as e:
-        print(f"Email Error: {e}")
+        # Standardize on st.error for better debugging in the UI
+        st.error(f"Gmail API Application Result Error: {e}")
         return False
 
 
