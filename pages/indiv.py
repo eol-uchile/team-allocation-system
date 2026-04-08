@@ -6,6 +6,9 @@ import time
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+import base64
 
 NATIONALITIES = ["Select...", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Côte d'Ivoire", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"] 
 GENDERS = ["Select...", "Male", "Female", "Confidential"]
@@ -26,25 +29,32 @@ with open("./templates/indiv_template.html", "r") as f:
 
 st.set_page_config(page_title="Individual Registration - Poverty Alleviation", page_icon="📋", layout="wide")
 
+
 def send_gmail_confirmation(recipient_email, recipient_name):
-    sender_email = st.secrets["EMAIL"]
-    app_password = st.secrets["EMAIL_PASSWORD"]
-    if not sender_email or not app_password:
-        return False
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = recipient_email
-    msg["Subject"] = "Registration Confirmed - Poverty Alleviation Challenge"
-    body = INDIV_HTML_TEMPLATE.format(name=recipient_name)
-    msg.attach(MIMEText(body, "html"))
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(sender_email, app_password)
-        server.send_message(msg)
-        server.quit()
+        # Load the credentials from Streamlit Secrets
+        creds_info = st.secrets["GMAIL_TOKEN"]
+        creds = Credentials.from_authorized_user_info(creds_info)
+        
+        # Build the Gmail API Service
+        service = build('gmail', 'v1', credentials=creds)
+        
+        # Create the HTML email (Use your existing template)
+        html_content = INDIV_HTML_TEMPLATE.format(name=recipient_name)
+        message = MIMEText(html_content, 'html')
+        message['to'] = recipient_email
+        message['from'] = st.secrets["EMAIL"]
+        message['subject'] = "Registration Confirmed!"
+        
+        # Encode the message for Google's API
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        
+        # Send it
+        service.users().messages().send(userId='me', body={'raw': raw}).execute()
         return True
-    except:
+        
+    except Exception as e:
+        st.error(f"Gmail API Error: {e}")
         return False
 
 def check_registration_access():

@@ -4,9 +4,11 @@ from db import get_connection, release_connection
 import os
 import time
 import secrets
-import smtplib
-from email.mime.text import MIMEText
+import base64
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
 
 NATIONALITIES = ["Select...", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Côte d'Ivoire", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"] 
 GENDERS = ["Select...", "Male", "Female", "Confidential"]
@@ -72,48 +74,47 @@ def render_member_form(label, key_prefix, show_role_toggle=False, is_leader=Fals
     return {"name": name, "email": email, "nat": nat, "gender": gender, "university": uni, "department": dept, "education_level": ed, "major": major, "is_recorder": is_recorder, "phone": phone}
 
 def send_group_emails(leader_email, members_list, group_name):
-    sender_email = st.secrets["EMAIL"]
-    app_password = st.secrets["EMAIL_PASSWORD"]
-    domain = os.getenv("DOMAIN", "localhost:8501")
-
-    # Email to the group leader
-    leader_msg = MIMEMultipart()
-    leader_msg["To"] = leader_email
-    leader_msg["Subject"] = f"Group Registered: {group_name}"
-    
-    leader_body = LEADER_TEMPLATE_HTML.format(group_name=group_name)
-    leader_msg.attach(MIMEText(leader_body, "html"))
-    
-    # Emails to the other group members
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(sender_email, app_password)
+        # 1. Setup Gmail API Service
+        creds_info = st.secrets["GMAIL_TOKEN"]
+        creds = Credentials.from_authorized_user_info(creds_info)
+        service = build('gmail', 'v1', credentials=creds)
         
-        # Send to Leader
-        server.sendmail(sender_email, leader_email, leader_msg.as_string())
+        sender_email = st.secrets["EMAIL"]
+        domain = os.getenv("DOMAIN", "localhost:8501")
 
-        # Send to each member (except leader)
+        # --- Helper Function to Encode & Send ---
+        def api_send(recipient, subject, html_body):
+            message = MIMEMultipart()
+            message["To"] = recipient
+            message["From"] = sender_email
+            message["Subject"] = subject
+            message.attach(MIMEText(html_body, "html"))
+            
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+
+        # 2. Send Email to the Group Leader
+        leader_body = LEADER_TEMPLATE_HTML.format(group_name=group_name)
+        api_send(leader_email, f"Group Registered: {group_name}", leader_body)
+
+        # 3. Send Emails to the other group members
         for member in members_list:
             token = member['token']
             opt_out_link = f"http://{domain}/?page=optout&token={token}"
             
-            m_msg = MIMEMultipart()
-            m_msg["To"] = member['email']
-            m_msg["Subject"] = f"Added to group: {group_name}"
-            body = GROUP_TEMPLATE_HTML.format(
+            member_body = GROUP_TEMPLATE_HTML.format(
                 name=member['name'],
                 group_name=group_name,
                 opt_out_link=opt_out_link
             )
-            m_msg.attach(MIMEText(body, "html"))
             
-            server.sendmail(sender_email, member['email'], m_msg.as_string())
+            api_send(member['email'], f"Added to group: {group_name}", member_body)
             
-        server.quit()
         return True
     except Exception as e:
-        print(f"SMTP Error: {e}")
+        # Using st.error so you can see what's wrong during testing
+        st.error(f"Gmail API Group Error: {e}")
         return False
 
 def check_registration_access():
