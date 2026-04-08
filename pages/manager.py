@@ -43,11 +43,11 @@ def update_table(df_to_save, table_name):
                 cur.execute("""
                     UPDATE members 
                     SET name=%s, email=%s, university=%s, nationality=%s, 
-                        gender=%s, major=%s, introductory_text=%s 
+                        gender=%s, major=%s, personal_profile=%s 
                     WHERE id=%s
                 """, (
                     row['name'], row['email'], row['university'], row['nationality'],
-                    row['gender'], row['major'], row['introductory_text'], row['id']
+                    row['gender'], row['major'], row['personal_profile'], row['id']
                 ))
         elif table_name == "groups":
             for _, row in df_to_save.iterrows():
@@ -157,7 +157,6 @@ def main():
             "department": st.column_config.TextColumn("Department"),
             "group_link": st.column_config.TextColumn("Group Id"),
             "department": st.column_config.TextColumn("Department"),
-            "introductory_text": st.column_config.TextColumn("Introductory Text", width="large"),
             "opt_out_token": None,
             "application_token": None,
             "registration_type": None,

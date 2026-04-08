@@ -91,7 +91,7 @@ def main():
     conn = get_connection()
     try:
         query = """
-            SELECT name, nationality, university, major, education_level, introductory_text, email 
+            SELECT name, nationality, university, major, education_level, personal_profile, email 
             FROM members 
             WHERE group_link IS NULL 
             ORDER BY name ASC
@@ -122,7 +122,7 @@ def main():
                                         
                     # Introduction Display
                     with st.expander("View Introduction", expanded=False):
-                        st.write(row['introductory_text'])
+                        st.write(row['personal_profile'])
                     
                     if st.button("Contact Member", key=f"contact_{idx}", use_container_width=True):
                         contact_dialog(row['name'], row['email'])
