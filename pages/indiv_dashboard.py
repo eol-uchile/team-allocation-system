@@ -8,7 +8,7 @@ def get_individual_data():
     try:
         conn = get_connection()
         query = """
-            SELECT name, nationality, major, university, gender, introductory_text 
+            SELECT name, nationality, major, university, gender, personal_profile 
             FROM individual_register
         """
         df = pd.read_sql(query, conn)
@@ -41,7 +41,7 @@ def main():
                 "major": "Major",
                 "university": "University",
                 "gender": "Gender",
-                "introductory_text": "Introductory Text",
+                "personal_profile": "Personal Profile",
                 "education_level": "Level",
                 "interest_description": st.column_config.TextColumn(
                     "About / Skills", width="large"
