@@ -36,7 +36,7 @@ def main():
             return
 
         cur.execute("""
-            SELECT name, nationality, university, university_country, department, major, education_level, status
+            SELECT name, nationality, university, department, major, education_level, status
             FROM members 
             WHERE group_link = %s
             ORDER BY CASE 
@@ -47,7 +47,7 @@ def main():
         members = cur.fetchall()
         
         members_df = pd.DataFrame(members, columns=[
-            "Name", "Nationality", "University", "Country of Institution", 
+            "Name", "Nationality", "University",
             "Department", "Major", "Education Level", "Role"
         ])
 

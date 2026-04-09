@@ -4,16 +4,13 @@ from db import get_connection, release_connection
 import os
 import time
 import secrets
-import base64
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
+from utils import send_email
 
 NATIONALITIES = ["Select...", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Côte d'Ivoire", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"] 
 GENDERS = ["Select...", "Male", "Female", "Confidential"]
-EDUCATION_LEVELS = ["Select...", "Undergraduate", "Graduate", "PhD"]
+EDUCATION_LEVELS = ["Select...", "Undergraduate", "Master", "PhD"]
 FORMS_PASSWORD = st.secrets["FORMS_PASSWORD"]
+DOMAIN = os.getenv("DOMAIN", "localhost:8501")
 
 UNIVERSITY_TO_COUNTRY = {
     "Select...": None,
@@ -73,49 +70,6 @@ def render_member_form(label, key_prefix, show_role_toggle=False, is_leader=Fals
     st.divider()
     return {"name": name, "email": email, "nat": nat, "gender": gender, "university": uni, "department": dept, "education_level": ed, "major": major, "is_recorder": is_recorder, "phone": phone}
 
-def send_group_emails(leader_email, members_list, group_name):
-    try:
-        # 1. Setup Gmail API Service
-        creds_info = st.secrets["GMAIL_TOKEN"]
-        creds = Credentials.from_authorized_user_info(creds_info)
-        service = build('gmail', 'v1', credentials=creds)
-        
-        sender_email = st.secrets["EMAIL"]
-        domain = os.getenv("DOMAIN", "localhost:8501")
-
-        # --- Helper Function to Encode & Send ---
-        def api_send(recipient, subject, html_body):
-            message = MIMEMultipart()
-            message["To"] = recipient
-            message["From"] = sender_email
-            message["Subject"] = subject
-            message.attach(MIMEText(html_body, "html"))
-            
-            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-            service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
-
-        # 2. Send Email to the Group Leader
-        leader_body = LEADER_TEMPLATE_HTML.format(group_name=group_name)
-        api_send(leader_email, f"Group Registered: {group_name}", leader_body)
-
-        # 3. Send Emails to the other group members
-        for member in members_list:
-            token = member['token']
-            opt_out_link = f"http://{domain}/?page=optout&token={token}"
-            
-            member_body = GROUP_TEMPLATE_HTML.format(
-                name=member['name'],
-                group_name=group_name,
-                opt_out_link=opt_out_link
-            )
-            
-            api_send(member['email'], f"Added to group: {group_name}", member_body)
-            
-        return True
-    except Exception as e:
-        # Using st.error so you can see what's wrong during testing
-        st.error(f"Gmail API Group Error: {e}")
-        return False
 
 def check_registration_access():
     """
@@ -126,7 +80,7 @@ def check_registration_access():
 
     if st.session_state.public_authenticated:
         return True
-    st.set_page_config(page_title="Poverty Alleviation Challenge Registration", page_icon="📋")
+    st.set_page_config(page_title="2026 Poverty Alleviation Challenge Registration", page_icon="📋")
     st.title("Registration Access")
     st.write("Please enter the password to access the registration form.")
         
@@ -148,12 +102,11 @@ def main():
     if not check_registration_access():
         st.stop()
 
-    st.set_page_config(page_title="Group Registration - Poverty Alleviation Challenge Registration", page_icon="📋")
+    st.set_page_config(page_title="Group Registration - 2026 Poverty Alleviation Challenge Registration", page_icon="📋")
 
     st.title("Group Registration")
 
-    st.info("Groups must have between 2 and 5 members (including the leader). Also they need to have at least 2 different nationalities on the team.")
-
+    st.info("Groups reach full capacity at **5 members** (including the leader). We strongly encourage forming **international teams**.")
     if 'extra_members' not in st.session_state:
         st.session_state.extra_members = 1
     if "n_members" not in st.session_state: 
@@ -214,8 +167,7 @@ def main():
     col_h1, col_h2 = st.columns(2)
     with col_h1:
         prev_award = st.selectbox("Previous Team Award?", options=["No", "Yes"], key="hist_award_group", disabled=hist_disabled)
-        name_disabled = hist_disabled or (prev_award == "No")
-        project_name = st.text_input("Project Name", key="hist_proj_name_group", disabled=name_disabled)
+        project_name = st.text_input("Project Name", key="hist_proj_name_group", disabled=hist_disabled)
         
     with col_h2:
         reusing_project = st.selectbox("Reusing/Building on past project for 2026?", options=["No", "Yes"], key="hist_reuse_group", disabled=hist_disabled)
@@ -252,7 +204,7 @@ def main():
         )
 
         group_fields_incomplete = any(f.strip() == "" for f in [group_name, description_existing_members, expected_members, topic_introduction])
-        hist_incomplete = (prev_participation == "Yes" and prev_award == "Yes" and project_name.strip() == "")
+        hist_incomplete = (prev_participation == "Yes" and project_name.strip() == "")
         has_recorder = any(m.get('is_recorder', False) for m in member_data_list)
 
         if req_incomplete or n_incomplete or group_fields_incomplete or hist_incomplete:
@@ -273,8 +225,8 @@ def main():
                     taken_emails = ", ".join([res[0] for res in already_taken])
                     st.error(f"Registration stopped. Members already assigned: {taken_emails}")
                 else:
-                    unique_nations = {UNIVERSITY_TO_COUNTRY.get(m['university']) for m in all_provided_members if m['university'] != "Select..."}
-                    is_complete = len(all_provided_members) >= 2 and len(unique_nations) >= 2
+                    core_team_count = 1 + len(member_data_list)
+                    is_complete = (core_team_count == 5)
 
                     cur.execute("""
                         INSERT INTO groups (
@@ -319,8 +271,23 @@ def main():
                             ON CONFLICT (email) DO UPDATE SET group_link = EXCLUDED.group_link, status = EXCLUDED.status;
                         """, (group_id, m['name'], m['gender'], m['nat'], m['university'], n_member_uni_country, m['department'], m['education_level'], m['major'], m['email']))
 
-                conn.commit()
-                send_group_emails(leader_data['email'], member_data_list, group_name)
+                with st.spinner(text="Registering group and sending emails...", show_time=False, width="content"):
+                    conn.commit()
+                    # Handle email logic
+                    # Send Email to Leader
+                    leader_body = LEADER_TEMPLATE_HTML.format(group_name=group_name)
+                    send_email(leader_data['email'], f"Group Registered: {group_name}", leader_body)
+
+                    # Send Email to Members
+                    for m in member_data_list:
+                        opt_out_link = f"http://{DOMAIN}/?page=optout&token={m['token']}"
+                        
+                        member_body = GROUP_TEMPLATE_HTML.format(
+                            name=m['name'],
+                            group_name=group_name,
+                            opt_out_link=opt_out_link
+                        )
+                        send_email(m['email'], f"Added to group: {group_name}", member_body)
                 registration_successful = True
 
             except psycopg2.errors.UniqueViolation:

@@ -1,10 +1,10 @@
 import streamlit as st
 from pages import accept_member, indiv, group, manager, optout, join_group, indiv_directory, group_directory, accept_member, group_info
 
-st.set_page_config(page_title="Poverty Alleviation Challenge Registration", page_icon="📋", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="2026 Poverty Alleviation Challenge Registration", page_icon="📋", layout="centered", initial_sidebar_state="collapsed")
 
 def show_home():
-    st.title("Poverty Alleviation Challenge Registration")
+    st.title("2026 Poverty Alleviation Challenge Registration")
     
     # Registration Section
     st.markdown("### 📝 Registration & Groups")

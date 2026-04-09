@@ -157,7 +157,7 @@ def main():
             "major": st.column_config.TextColumn("Major"),
             "education_level": st.column_config.TextColumn("Educational level"),
             "department": st.column_config.TextColumn("Department"),
-            "group_link": st.column_config.TextColumn("Group Id"),
+            "group_link": st.column_config.TextColumn("Group Id", disabled=True),
             "department": st.column_config.TextColumn("Department"),
             "opt_out_token": None,
             "application_token": None,

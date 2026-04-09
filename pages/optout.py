@@ -19,6 +19,7 @@ def main():
     st.title("Confirm Group Opt-out")
     
     conn = None
+    cur = None
     try:
         conn = get_connection()
         cur = conn.cursor()
@@ -39,30 +40,29 @@ def main():
             res = cur.fetchone()
             group_id, reg_type = res[0], res[1]
 
-            # Conditional Removal or Update
+            # Removal/Update Logic
             if reg_type == 'group_added':
-                # Remove them entirely if they were only added via the group form
                 cur.execute("DELETE FROM members WHERE id = %s", (member_id,))
             else:
-                # Keep them but reset their group status if they were a pre-registered individual
                 cur.execute("""
                     UPDATE members 
                     SET group_link = NULL, opt_out_token = NULL, status = '' 
                     WHERE id = %s
                 """, (member_id,))
             
-            # Recalculate Group Completion based on university_country
+            # Re-calculate Group Completion
             if group_id:
+                # Count non N-members remaining
                 cur.execute("""
-                    SELECT COUNT(id), COUNT(DISTINCT university_country) 
+                    SELECT COUNT(id) 
                     FROM members 
-                    WHERE group_link = %s
+                    WHERE group_link = %s 
+                    AND status NOT IN ('pending', 'N Member')
                 """, (group_id,))
                 
-                count, distinct_uni_countries = cur.fetchone()
+                remaining_core_count = cur.fetchone()[0]
                 
-                # Check if group still meets requirements (2+ people, 2+ uni countries)
-                is_complete = (count >= 2 and distinct_uni_countries >= 2)
+                is_complete = (remaining_core_count >= 5)
                 
                 cur.execute("""
                     UPDATE groups 
@@ -77,5 +77,8 @@ def main():
     except Exception as e:
         st.error(f"Database error: {e}")
     finally:
+        if cur:
+            conn.rollback()
+            cur.close()
         if conn:
             release_connection(conn)
