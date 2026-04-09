@@ -1,27 +1,24 @@
 import streamlit as st
 import psycopg2
 from db import get_connection, release_connection
-import os
 import time
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-import base64
+from utils import send_email
 
 NATIONALITIES = ["Select...", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Côte d'Ivoire", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"] 
 GENDERS = ["Select...", "Male", "Female", "Confidential"]
-EDUCATION_LEVELS = ["Select...", "Undergraduate", "Graduate", "PhD"]
+EDUCATION_LEVELS = ["Select...", "Undergraduate", "Master", "PhD"]
 FORMS_PASSWORD = st.secrets["FORMS_PASSWORD"]
 
 UNIVERSITY_TO_COUNTRY = {
     "Select...": None,
     "Tsinghua University (China)": "China",
     "Federal University of Rio de Janeiro (Brazil)": "Brazil",
+    "São Paulo School of Business Administration of Fundação Getulio Vargas (FGV EAESP) (Brazil)": "Brazil",
     "Universidad de Chile (Chile)": "Chile",
     "Pontificia Universidad Católica de Chile (Chile)": "Chile",
-    "Pontificia Universidad Católica del Perú (Peru)": "Peru"
+    "Pontificia Universidad Católica del Perú (Peru)": "Peru",
+    "University of the Pacific (Peru)": "Peru",
+    "Other": ""
 }
 
 with open("./templates/indiv_template.html", "r") as f:
@@ -29,33 +26,6 @@ with open("./templates/indiv_template.html", "r") as f:
 
 st.set_page_config(page_title="Individual Registration - Poverty Alleviation", page_icon="📋", layout="wide")
 
-
-def send_gmail_confirmation(recipient_email, recipient_name):
-    try:
-        # Load the credentials from Streamlit Secrets
-        creds_info = st.secrets["GMAIL_TOKEN"]
-        creds = Credentials.from_authorized_user_info(creds_info)
-        
-        # Build the Gmail API Service
-        service = build('gmail', 'v1', credentials=creds)
-        
-        # Create the HTML email (Use your existing template)
-        html_content = INDIV_HTML_TEMPLATE.format(name=recipient_name)
-        message = MIMEText(html_content, 'html')
-        message['to'] = recipient_email
-        message['from'] = st.secrets["EMAIL"]
-        message['subject'] = "Registration Confirmed!"
-        
-        # Encode the message for Google's API
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        
-        # Send it
-        service.users().messages().send(userId='me', body={'raw': raw}).execute()
-        return True
-        
-    except Exception as e:
-        st.error(f"Gmail API Error: {e}")
-        return False
 
 def check_registration_access():
     if st.session_state.get("public_authenticated", False):
@@ -75,12 +45,16 @@ def render_individual_form():
     col1, col2 = st.columns(2)
     with col1:
         name = st.text_input("Full Name", key="indiv_name")
-        email = st.text_input("Email Address", key="indiv_email")
+        email = st.text_input("Email Address (Please use the education email address of your institution)", key="indiv_email")
         nationality = st.selectbox("Nationality", options=NATIONALITIES, key="indiv_nat")
         gender = st.selectbox("Gender", options=GENDERS, key="indiv_gender")
         phone = st.text_input("Phone Number (Optional)", key="indiv_phone")
     with col2:
-        university = st.selectbox("Current University/Cooperating Institution", options=list(UNIVERSITY_TO_COUNTRY.keys()), key="indiv_uni")
+        selected_existing_uni = st.selectbox("Current University/Cooperating Institution", options=list(UNIVERSITY_TO_COUNTRY.keys()), key="indiv_uni")
+        # Logic for other universities
+        university = selected_existing_uni
+        if selected_existing_uni == "Other":
+            university = st.text_input("Add your University/Cooperating Institution Name", key="indiv_uni_custom")
         department = st.text_input("Department", key="indiv_dept")
         major = st.text_input("Major", key="indiv_major")
         ed_level = st.selectbox("Education Level", options=EDUCATION_LEVELS, key="indiv_ed")
@@ -115,11 +89,14 @@ def main():
     col_h1, col_h2 = st.columns(2)
     with col_h1:
         prev_award = st.selectbox("Previous Award?", options=["No", "Yes"], key="hist_award", disabled=hist_disabled)
-        name_disabled = hist_disabled or (prev_award == "No")
-        project_name = st.text_input("Project Name", key="hist_proj_name", disabled=name_disabled)
-        
+        project_name = st.text_input("Project Name", key="hist_proj_name", disabled=hist_disabled)        
     with col_h2:
         reusing_project = st.selectbox("Reusing project for 2026?", options=["No", "Yes"], key="hist_reuse", disabled=hist_disabled)
+    file_uploaded = None
+    if reusing_project == "Yes":
+        st.markdown("Please upload the complete proposal of the original works from previous competitions to the following link (name it 'team leader name + project name'): https://v2.fangcloud.com/collection/733ad45be8035b3cfb2950b2b77e6715")
+        st.info("Check this box if the file has been succesfully uploaded")
+        file_uploaded = st.checkbox("File has been succesfuly uploaded", key="file_checkbox")
 
     st.divider()
     st.markdown("### Profile Details")
@@ -131,7 +108,7 @@ def main():
         incomplete = any([
             user_data["name"].strip() == "",
             user_data["email"].strip() == "",
-            user_data["university"] == "Select...",
+            user_data["university"] == "Select..." or user_data["university"].strip() == "",
             user_data["dept"].strip() == "",
             user_data["major"].strip() == "",
             user_data["nat"] == "Select...",
@@ -140,7 +117,7 @@ def main():
             personal_profile.strip() == "",
             teammate_profile.strip() == "",
             research_topic.strip() == "",
-            (prev_participation == "Yes" and prev_award == "Yes" and project_name.strip() == "")
+            (prev_participation == "Yes" and project_name.strip() == "")
         ])
         
         if incomplete:
@@ -157,19 +134,21 @@ def main():
                         name, email, nationality, gender, university, university_country, 
                         department, major, education_level, personal_profile, teammate_profile, 
                         research_topic, phone_number, status, registration_type,
-                        previous_participation, previous_award, project_name, reusing_project
+                        previous_participation, previous_award, project_name, reusing_project, file_uploaded
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """, (
                     user_data['name'], user_data['email'], user_data['nat'], user_data['gender'],
                     user_data['university'], uni_country, user_data['dept'],
                     user_data['major'], user_data['ed_level'], personal_profile,
                     teammate_profile, research_topic, user_data['phone'], "", "individual",
-                    prev_participation, prev_award, project_name, reusing_project
+                    prev_participation, prev_award, project_name, reusing_project, file_uploaded
                 ))
                 with st.spinner():
                     conn.commit()
-                    send_gmail_confirmation(user_data['email'], user_data['name'])
+                    # Handle email logic
+                    html_content = INDIV_HTML_TEMPLATE.format(name=user_data['name'])
+                    send_email(user_data['email'], "Registration Confirmed!", html_content)
                     st.success("Registration Successful! Redirecting...")
                     time.sleep(5)
                     st.query_params.clear() 

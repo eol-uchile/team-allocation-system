@@ -1,13 +1,9 @@
 import streamlit as st
 from db import get_connection, release_connection
 import time
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import secrets
 import os
-import base64
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
+from utils import send_email
 
 DOMAIN = os.getenv("DOMAIN", "localhost:8501")
 FORMS_PASSWORD = st.secrets["FORMS_PASSWORD"]
@@ -31,6 +27,8 @@ def check_registration_access():
 
 def get_group_leader_email(group_id):
     leader_email = None
+    conn = None
+    cur = None
     try:
         conn = get_connection()
         cur = conn.cursor()
@@ -46,46 +44,6 @@ def get_group_leader_email(group_id):
         if conn:
             release_connection(conn)
     return leader_email
-
-def send_application_alert_to_leader(leader_email, applicant_name, group_name, reason, application_token):
-    try:
-        # 1. Setup Gmail API Service
-        creds_info = st.secrets["GMAIL_TOKEN"]
-        creds = Credentials.from_authorized_user_info(creds_info)
-        service = build('gmail', 'v1', credentials=creds)
-        
-        sender_email = st.secrets["EMAIL"]
-        domain = os.getenv("DOMAIN", "localhost:8501") # Ensure DOMAIN is accessible here
-
-        # 2. Prepare the Message Content
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = leader_email
-        msg["Subject"] = f"New Application for {group_name}"
-
-        # Using https as standard for the accept_url
-        accept_url = f"https://{domain}/?page=accept_member&token={application_token}"
-        
-        body = JOIN_GROUP_HTML_TEMPLATE.format(
-            applicant_name=applicant_name, 
-            group_name=group_name, 
-            reason=reason, 
-            accept_url=accept_url
-        )
-        msg.attach(MIMEText(body, "html"))
-
-        # 3. Encode the message for Gmail API
-        raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        
-        # 4. Send the message
-        service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
-        
-        return True
-
-    except Exception as e:
-        # Log the error for debugging on the server console
-        print(f"Leader Notification Error: {e}")
-        return False
 
 def main():
     if not check_registration_access():
@@ -124,26 +82,30 @@ def main():
                 else:
                     target_group_id = group_options[selected_group_name]
                     application_token = secrets.token_urlsafe(32)
-                    cur.execute("""
-                        UPDATE members 
-                        SET status = 'pending', group_link = %s, application_token = %s 
-                        WHERE email = %s
-                    """, (str(target_group_id), application_token, email_input))
-
-                    target_group_id = group_options[selected_group_name]
                     update_query = """
                         UPDATE members 
-                        SET status = 'pending', group_link = %s 
+                        SET status = 'pending', group_link = %s, application_token = %s
                         WHERE email = %s
                     """
-                    cur.execute(update_query, (target_group_id, email_input))
-                    conn.commit()
-                    leader_email = get_group_leader_email(target_group_id)
-                    if leader_email:
-                        send_application_alert_to_leader(leader_email, user[0], selected_group_name, join_reason, application_token)
-                    st.success(f"Application sent! The leader of {selected_group_name} has been notified.")
-                    time.sleep(3)
-                    st.query_params.clear()
+                    with st.spinner(text="Sending email...", show_time=False, width="content"): 
+                        leader_email = get_group_leader_email(target_group_id)
+                        cur.execute(update_query, (target_group_id, application_token, email_input))
+                        conn.commit()
+                        # Handle Email logic
+                        if leader_email:
+                            accept_url = f"https://{DOMAIN}/?page=accept_member&token={application_token}"
+                            
+                            html_body = JOIN_GROUP_HTML_TEMPLATE.format(
+                                applicant_name=user[0], 
+                                group_name=selected_group_name, 
+                                reason=join_reason, 
+                                accept_url=accept_url
+                            )
+                            
+                            send_email(leader_email, f"New Application for {selected_group_name}", html_body)
+                        st.success(f"Application sent! The leader of {selected_group_name} has been notified.")
+                        time.sleep(3)
+                        st.query_params.clear()
                     st.rerun()
 
             except Exception as e:
