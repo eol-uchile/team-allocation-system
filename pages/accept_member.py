@@ -1,51 +1,9 @@
 import streamlit as st
 from db import get_connection, release_connection
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import base64
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
+from utils import send_email
 
-def send_application_result_email(recipient_email, recipient_name, group_name, accepted=True):
-    try:
-        # 1. Setup Gmail API Service
-        creds_info = st.secrets["GMAIL_TOKEN"]
-        creds = Credentials.from_authorized_user_info(creds_info)
-        service = build('gmail', 'v1', credentials=creds)
-        
-        platform_email = st.secrets["EMAIL"]
-
-        # 2. Prepare the Message Content
-        msg = MIMEMultipart()
-        msg["From"] = platform_email
-        msg["To"] = recipient_email
-        msg["Subject"] = f"Update: Your application to {group_name}"
-
-        status_text = "accepted" if accepted else "declined"
-        color = "#28a745" if accepted else "#dc3545"
-
-        body = f"""
-        <div style="font-family: sans-serif; color: #222;">
-            <p>Hi {recipient_name},</p>
-            <p>The group leader of <strong>{group_name}</strong> has reviewed your application.</p>
-            <p>Your request has been <strong style="color: {color};">{status_text}</strong>.</p>
-            <p>Best regards,<br>The Poverty Alleviation Challenge Team</p>
-        </div>
-        """
-        msg.attach(MIMEText(body, "html"))
-
-        # 3. Encode the message for Gmail API
-        raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        
-        # 4. Send the message
-        service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
-        
-        return True
-
-    except Exception as e:
-        # Standardize on st.error for better debugging in the UI
-        st.error(f"Gmail API Application Result Error: {e}")
-        return False
+with open("./templates/accept_member_template.html", "r") as f:
+    ACCEPT_MEMBER_TEMPLATE = f.read()
 
 
 def main():
@@ -86,9 +44,14 @@ def main():
         member_id, member_name, group_id, member_email = member       
          
         # Get Group Name
-        cur.execute("SELECT group_name FROM groups WHERE id = %s", (group_id,))
+        cur.execute("SELECT group_name, is_complete FROM groups WHERE id = %s", (group_id,))
         group_res = cur.fetchone()
-        group_name = group_res[0] if group_res else "Unknown Group"
+        
+        if not group_res:
+            st.error("Group not found.")
+            return
+            
+        group_name, is_already_complete = group_res
 
         st.warning(f"As group leader, do you accept **{member_name}** into **{group_name}**?")
         
@@ -106,23 +69,26 @@ def main():
                 
                 # Recalculate group completion
                 cur.execute("""
-                    SELECT COUNT(id), COUNT(DISTINCT university_country)
-                    FROM members
-                    WHERE group_link = %s AND status != 'pending'
+                    SELECT COUNT(id) FROM members 
+                    WHERE group_link = %s AND status NOT IN ('pending', 'N Member')
                 """, (group_id,))
+                new_count = cur.fetchone()[0]
                 
-                count, distinct_uni_countries = cur.fetchone()
-                
-                is_complete = (count > 1 and distinct_uni_countries > 1)
-                
-                cur.execute("""
-                    UPDATE groups
-                    SET is_complete = %s
-                    WHERE id = %s
-                """, (is_complete, group_id))
-                
-                conn.commit()
-                send_application_result_email(member_email, member_name, group_name, accepted=True)
+                # Update groups table if the group got filled
+                if new_count >= 5:
+                    cur.execute("UPDATE groups SET is_complete = TRUE WHERE id = %s", (group_id,))
+  
+                with st.spinner(text="Processing...", show_time=False, width="content"): 
+                    conn.commit()
+                    # Handle Email Logic
+                    html_body = ACCEPT_MEMBER_TEMPLATE.format(
+                        recipient_name=member_name,
+                        group_name=group_name,
+                        color="#28a745",
+                        status_text="accepted"
+                    )
+                    send_email(member_email, f"Update: Your application to {group_name}", html_body)
+
                 st.session_state.acceptance_done = True
                 st.rerun()
 
@@ -135,9 +101,18 @@ def main():
                     SET group_link = NULL, status = '', application_token = NULL
                     WHERE id = %s
                 """, (member_id,))
-                conn.commit()
-                st.info("Application declined.")
-                send_application_result_email(member_email, member_name, group_name, accepted=False)
+                with st.spinner(text="Processing...", show_time=False, width="content"): 
+                    conn.commit()
+                    st.info("Application declined.")
+                    # Handle Email Logic
+                    html_body = ACCEPT_MEMBER_TEMPLATE.format(
+                        recipient_name=member_name,
+                        group_name=group_name,
+                        color="#dc3545",
+                        status_text="declined"
+                    )
+                    send_email(member_email, f"Update: Your application to {group_name}", html_body)
+
                 st.session_state.acceptance_done = True
                 st.rerun()
 
