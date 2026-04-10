@@ -13,9 +13,12 @@ UNIVERSITY_TO_COUNTRY = {
     "Select...": None,
     "Tsinghua University (China)": "China",
     "Federal University of Rio de Janeiro (Brazil)": "Brazil",
+    "São Paulo School of Business Administration of Fundação Getulio Vargas (FGV EAESP) (Brazil)": "Brazil",
     "Universidad de Chile (Chile)": "Chile",
     "Pontificia Universidad Católica de Chile (Chile)": "Chile",
-    "Pontificia Universidad Católica del Perú (Peru)": "Peru"
+    "Pontificia Universidad Católica del Perú (Peru)": "Peru",
+    "University of the Pacific (Peru)": "Peru",
+    "Other": ""
 }
 
 with open("./templates/indiv_template.html", "r") as f:
@@ -47,7 +50,11 @@ def render_individual_form():
         gender = st.selectbox("Gender", options=GENDERS, key="indiv_gender")
         phone = st.text_input("Phone Number (Optional)", key="indiv_phone")
     with col2:
-        university = st.selectbox("Current University/Cooperating Institution", options=list(UNIVERSITY_TO_COUNTRY.keys()), key="indiv_uni")
+        selected_existing_uni = st.selectbox("Current University/Cooperating Institution", options=list(UNIVERSITY_TO_COUNTRY.keys()), key="indiv_uni")
+        # Logic for other universities
+        university = selected_existing_uni
+        if selected_existing_uni == "Other":
+            university = st.text_input("Add your University/Cooperating Institution Name", key="indiv_uni_custom")
         department = st.text_input("Department", key="indiv_dept")
         major = st.text_input("Major", key="indiv_major")
         ed_level = st.selectbox("Education Level", options=EDUCATION_LEVELS, key="indiv_ed")
@@ -96,7 +103,7 @@ def main():
         incomplete = any([
             user_data["name"].strip() == "",
             user_data["email"].strip() == "",
-            user_data["university"] == "Select...",
+            user_data["university"] == "Select..." or user_data["university"].strip() == "",
             user_data["dept"].strip() == "",
             user_data["major"].strip() == "",
             user_data["nat"] == "Select...",

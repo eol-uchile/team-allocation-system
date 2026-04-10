@@ -16,9 +16,12 @@ UNIVERSITY_TO_COUNTRY = {
     "Select...": None,
     "Tsinghua University (China)": "China",
     "Federal University of Rio de Janeiro (Brazil)": "Brazil",
+    "São Paulo School of Business Administration of Fundação Getulio Vargas (FGV EAESP) (Brazil)": "Brazil",
     "Universidad de Chile (Chile)": "Chile",
     "Pontificia Universidad Católica de Chile (Chile)": "Chile",
-    "Pontificia Universidad Católica del Perú (Peru)": "Peru"
+    "Pontificia Universidad Católica del Perú (Peru)": "Peru",
+    "University of the Pacific (Peru)": "Peru",
+    "Other": ""
 }
 
 with open("./templates/group_template.html", "r") as f:
@@ -43,7 +46,13 @@ def lookup_member(key_prefix):
             st.session_state[f"{key_prefix}_name"] = res[0]
             st.session_state[f"{key_prefix}_nat"] = res[1]
             st.session_state[f"{key_prefix}_gender"] = res[2]
-            st.session_state[f"{key_prefix}_uni"] = res[3]
+            # Handle other university logic
+            db_uni = res[3]
+            if db_uni in UNIVERSITY_TO_COUNTRY:
+                st.session_state[f"{key_prefix}_uni"] = db_uni
+            else:
+                st.session_state[f"{key_prefix}_uni"] = "Other"
+                st.session_state[f"{key_prefix}_uni_custom"] = db_uni
             st.session_state[f"{key_prefix}_ed"] = res[4]
             st.session_state[f"{key_prefix}_major"] = res[5]
             st.session_state[f"{key_prefix}_dept"] = res[7]
@@ -62,7 +71,19 @@ def render_member_form(label, key_prefix, show_role_toggle=False, is_leader=Fals
         gender = st.selectbox("Gender", options=GENDERS, key=f"{key_prefix}_gender", disabled=is_locked)
         phone = st.text_input("Phone (Optional)", key=f"{key_prefix}_phone") if is_leader else None
     with col2:
-        uni = st.selectbox("University", options=list(UNIVERSITY_TO_COUNTRY.keys()), key=f"{key_prefix}_uni", disabled=is_locked)
+        selected_uni = st.selectbox(
+            "Current University", 
+            options=list(UNIVERSITY_TO_COUNTRY.keys()), 
+            key=f"{key_prefix}_uni", 
+            disabled=is_locked
+        )
+        uni = selected_uni
+        if selected_uni == "Other":
+            uni = st.text_input(
+                "Add your University Name", 
+                key=f"{key_prefix}_uni_custom", 
+                disabled=is_locked
+            )
         dept = st.text_input("Department", key=f"{key_prefix}_dept", disabled=is_locked)
         major = st.text_input("Major", key=f"{key_prefix}_major", disabled=is_locked)
         ed = st.selectbox("Education Level", options=EDUCATION_LEVELS, key=f"{key_prefix}_ed", disabled=is_locked)
@@ -192,14 +213,14 @@ def main():
         required_members = [leader_data] + member_data_list
         req_incomplete = any(
             m['name'].strip() == "" or m['email'].strip() == "" or m['nat'] == "Select..." or
-            m['university'].strip() == "" or
+            m['university'].strip() == "" or m['university'] == "Other" or
             m['department'].strip() == "" or m['major'].strip() == "" or
             m['education_level'] == "Select..." for m in required_members
         )
         
         n_incomplete = any(
             m['nat'] == "Select..." or
-            m['university'].strip() == "" or m['department'].strip() == "" or
+            m['university'].strip() == "" or m['university'] == "Other" or m['department'].strip() == "" or
             m['major'].strip() == "" for m in n_member_data_list
         )
 
