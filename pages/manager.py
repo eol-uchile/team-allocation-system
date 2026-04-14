@@ -109,17 +109,17 @@ def main():
         st.session_state.view = "home"
 
     if st.session_state.view == "home":
-        st.title("Group Admin")
+        st.title("Participants and Teams Admin")
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("👤 Individuals")
-            if st.button("Manage Individuals →", use_container_width=True):
+            st.subheader("👤 Participants")
+            if st.button("Manage Participants →", use_container_width=True):
                 st.session_state.view = "individuals"
                 st.rerun()
         with col2:
-            st.subheader("👥 Groups")
-            if st.button("Manage Groups →", use_container_width=True):
+            st.subheader("👥 Teams")
+            if st.button("Manage Teams →", use_container_width=True):
                 st.session_state.view = "groups"
                 st.rerun()
 
@@ -128,27 +128,47 @@ def main():
             st.session_state.view = "home"
             st.rerun()
             
-        st.title("👤 Individual Participants")
-        
-        conn = None
+        st.title("👤 Participants")
+
+        filter_col1, _ = st.columns([1, 2])
+        with filter_col1:
+            member_filter = st.selectbox(
+                "Filter View",
+                options=[
+                    "All Members", 
+                    "Members Without Group", 
+                    "Confirmed Team Members", 
+                    "Pending Team Requests"
+                ]
+            )
+
+        conn = get_connection()
         try:
-            conn = get_connection()
-            df = pd.read_sql("SELECT * FROM members ORDER BY id ASC", conn)
-        except Exception as e:
-            print(f"Database Error: {e}")
-            st.error("Connection Lost")
-            st.info("The database connection timed out. Please refresh the page to reconnect.")
+            query = """
+                SELECT m.*, g.group_name as team_name 
+                FROM members m 
+                LEFT JOIN groups g ON m.group_link = g.id::text 
+                ORDER BY g.group_name ASC NULLS LAST, m.name ASC
+            """
+            df = pd.read_sql(query, conn)
             
-            if st.button("Refresh Page"):
-                st.rerun()
-            st.stop()
+            if member_filter == "Members Without Group":
+                df = df[df['group_link'].isna() | (df['group_link'] == "")]
+            
+            elif member_filter == "Confirmed Team Members":
+                df = df[(df['group_link'].notna()) & (df['group_link'] != "") & (df['status'] != 'pending')]
+            
+            elif member_filter == "Pending Team Requests":
+                df = df[df['status'] == 'pending']
+
         finally:
-            if conn:
-                release_connection(conn)
-        
+            release_connection(conn)
+
         indiv_config = {
+            "team_name": st.column_config.TextColumn("Team Name", width="medium", disabled=True),
             "id": st.column_config.NumberColumn("ID", disabled=True),
             "name": st.column_config.TextColumn("Full Name"),
+            "status": st.column_config.TextColumn("Status"),
             "email": st.column_config.TextColumn("Email"),
             "nationality": st.column_config.TextColumn("Nationality"),
             "gender": st.column_config.TextColumn("Gender"),
@@ -171,9 +191,15 @@ def main():
             "previous_award": st.column_config.TextColumn("Previous Award"),
             "project_name": st.column_config.TextColumn("Project Name"),
             "reusing_project": st.column_config.TextColumn("Reusing Project")
-
         }
-        
+
+        cols = df.columns.tolist()
+        if "team_name" in cols:
+            cols.insert(1, cols.pop(cols.index("team_name")))
+        if "status" in cols:
+            cols.insert(2, cols.pop(cols.index("status")))
+        df = df[cols]
+
         edited_df = st.data_editor(
             df,
             column_config=indiv_config,
@@ -190,23 +216,73 @@ def main():
             st.session_state.view = "home"
             st.rerun()
             
-        st.title("👥 Group Registrations")
-        
-        conn = None
+        st.title("👥 Team Management View")
+
+        conn = get_connection()
         try:
-            conn = get_connection()
-            df = pd.read_sql("SELECT * FROM groups ORDER BY id ASC", conn)
+            query_teams = """
+                SELECT 
+                    id, is_complete, group_name, description_existing_members, 
+                    expected_members, topic_introduction, team_leader_email, 
+                    previous_participation, previous_award, project_name, reusing_project
+                FROM groups 
+                ORDER BY id ASC
+            """
+            df_teams = pd.read_sql(query_teams, conn)
+            
+            query_members = """
+                SELECT group_link, name, email, status 
+                FROM members 
+                WHERE group_link IS NOT NULL 
+                AND status != 'pending'
+                ORDER BY CASE WHEN status = 'Leader' THEN 1 ELSE 2 END, name ASC
+            """
+            df_members = pd.read_sql(query_members, conn)
         finally:
-            if conn:
-                release_connection(conn)
-        
-        df['Status'] = df['is_complete'].map({True: "COMPLETE", False: "INCOMPLETE"})
+            release_connection(conn)
+
+        df_teams['Status'] = df_teams['is_complete'].map({True: "COMPLETE", False: "INCOMPLETE"})
+
+        # Flatten Members into Team Rows
+        flattened_members = []
+        for idx, team in df_teams.iterrows():
+            team_id = str(team['id'])
+            team_mems = df_members[df_members['group_link'] == team_id]
+            regulars = team_mems[team_mems['status'] != 'N member'].reset_index()
+            n_members = team_mems[team_mems['status'] == 'N member'].reset_index()
+            
+            row_data = {}
+            
+            for i in range(5):
+                col_prefix = f"Member {i+1}"
+                if i < len(regulars):
+                    row_data[f"{col_prefix} Name"] = regulars.loc[i, 'name']
+                    row_data[f"{col_prefix} Email"] = regulars.loc[i, 'email']
+                    row_data[f"{col_prefix} Role"] = regulars.loc[i, 'status']
+                else:
+                    row_data[f"{col_prefix} Name"] = ""
+                    row_data[f"{col_prefix} Email"] = ""
+                    row_data[f"{col_prefix} Role"] = ""
+            
+            for i in range(2):
+                col_prefix = f"N-Member {i+1}"
+                if i < len(n_members):
+                    row_data[f"{col_prefix} Name"] = n_members.loc[i, 'name']
+                    row_data[f"{col_prefix} Email"] = n_members.loc[i, 'email']
+                    row_data[f"{col_prefix} Role"] = n_members.loc[i, 'status']
+                else:
+                    row_data[f"{col_prefix} Name"] = ""
+                    row_data[f"{col_prefix} Email"] = ""
+                    row_data[f"{col_prefix} Role"] = ""
+            flattened_members.append(row_data)
+
+        df_display = pd.concat([df_teams, pd.DataFrame(flattened_members)], axis=1)
 
         group_config = {
             "id": st.column_config.NumberColumn("ID", disabled=True),
             "is_complete": None,
             "Status": st.column_config.TextColumn("Status", disabled=True),
-            "group_name": st.column_config.TextColumn("Group Name", width="medium"),
+            "group_name": st.column_config.TextColumn("Team Name", width="medium"),
             "description_existing_members": st.column_config.TextColumn("Team Profile", width="large"),
             "expected_members": st.column_config.TextColumn("Expected Teammates Profile", width="large"),
             "topic_introduction": st.column_config.TextColumn("Topic Introduction", width="large"),
@@ -217,16 +293,33 @@ def main():
             "reusing_project": st.column_config.TextColumn("Reusing Project")
         }
 
+        member_cols_config = {}
+        for i in range(1, 8):
+            label = f"Member {i}" if i <= 5 else f"N-Member {i-5}"
+            
+            member_cols_config[f"{label} Name"] = st.column_config.TextColumn(f"{label} Name", width="medium", disabled=True)
+            member_cols_config[f"{label} Email"] = st.column_config.TextColumn(f"{label} Email", width="medium", disabled=True)
+            member_cols_config[f"{label} Role"] = st.column_config.TextColumn(f"{label} Role", width="medium", disabled=True)
+
+        # Merge configs
+        full_config = {**group_config, **member_cols_config}
+
+        st.info("Showing Team metadata and confirmed members. Member columns are read-only, but they can be modified on the admin individual view.")
+
         edited_df = st.data_editor(
-            df,
-            column_config=group_config,
+            df_display,
+            column_config=full_config,
             use_container_width=True,
             height=600,
             key="group_editor",
             hide_index=True
         )
-        if st.button("💾 Save Group Changes", type="primary"):
-            confirm_save(edited_df, "groups")
 
+        # Saving Logic
+        if st.button("💾 Save Team Metadata", type="primary"):
+            valid_db_columns = df_teams.columns.tolist()
+            df_to_save = edited_df[valid_db_columns]
+            confirm_save(df_to_save, "groups")
+   
 if __name__ == "__main__":
     main()
