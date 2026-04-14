@@ -65,7 +65,7 @@ def render_member_form(label, key_prefix, show_role_toggle=False, is_leader=Fals
     st.markdown(f"#### {label}")
     col1, col2 = st.columns(2)
     with col1:
-        email = st.text_input("Email", key=f"{key_prefix}_email", on_change=lookup_member, args=(key_prefix,))
+        email = st.text_input("Email (Please use the education email address of your institution)", key=f"{key_prefix}_email", on_change=lookup_member, args=(key_prefix,))
         name = st.text_input("Full Name", key=f"{key_prefix}_name", disabled=is_locked)
         nat = st.selectbox("Nationality", options=NATIONALITIES, key=f"{key_prefix}_nat", disabled=is_locked)
         gender = st.selectbox("Gender", options=GENDERS, key=f"{key_prefix}_gender", disabled=is_locked)

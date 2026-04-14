@@ -25,7 +25,7 @@ def check_registration_access():
 @st.dialog("Contact Member")
 def contact_dialog(member_name, member_email):
     st.write(f"Send a message to **{member_name}**")
-    sender_mail = st.text_input("Your Email Address (Your email will be shared with this participant)")
+    sender_mail = st.text_input("Your Email Address (Please use the education email address of your institution, it will be shared with this participant)")
     message = st.text_area("Your Message", height=150)
     
     if st.button("Send Email", type="primary", use_container_width=True):

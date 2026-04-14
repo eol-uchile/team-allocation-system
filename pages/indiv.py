@@ -45,7 +45,7 @@ def render_individual_form():
     col1, col2 = st.columns(2)
     with col1:
         name = st.text_input("Full Name", key="indiv_name")
-        email = st.text_input("Email Address", key="indiv_email")
+        email = st.text_input("Email Address (Please use the education email address of your institution)", key="indiv_email")
         nationality = st.selectbox("Nationality", options=NATIONALITIES, key="indiv_nat")
         gender = st.selectbox("Gender", options=GENDERS, key="indiv_gender")
         phone = st.text_input("Phone Number (Optional)", key="indiv_phone")
