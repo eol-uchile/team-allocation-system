@@ -48,7 +48,7 @@ def main():
         st.stop()
 
     st.title("Individual Member Directory")
-    st.markdown("Browse individual participants looking for a group. Search by name, major, or skills.")
+    st.markdown("Browse individual participants looking for a group.")
     
     conn = get_connection()
     try:
