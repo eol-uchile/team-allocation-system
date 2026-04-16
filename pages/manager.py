@@ -41,25 +41,25 @@ def update_table(df_to_save, table_name):
         if table_name == "members":
             for _, row in df_to_save.iterrows():
                 cur.execute("""
-                    UPDATE members 
-                    SET name=%s, email=%s, university=%s, nationality=%s, 
+                    UPDATE members
+                    SET name=%s, email=%s, university=%s, nationality=%s,
                         gender=%s, major=%s, personal_profile=%s, department=%s,
-                        phone_number=%s, teammate_profile=%s, research_topic=%s, previous_participation=%s, previous_award=%s, project_name=%s, reusing_project=%s
+                        phone_number=%s, teammate_profile=%s, research_topic=%s, previous_participation=%s, previous_award=%s, project_name=%s, reusing_project=%s, file_uploaded=%s
                     WHERE id=%s
                 """, (
                     row['name'], row['email'], row['university'], row['nationality'],
-                    row['gender'], row['major'], row['personal_profile'], row['department'], row['phone_number'], row['teammate_profile'], row['research_topic'], row['previous_participation'], row['previous_award'], row['project_name'], row['reusing_project'], row['id']
+                    row['gender'], row['major'], row['personal_profile'], row['department'], row['phone_number'], row['teammate_profile'], row['research_topic'], row['previous_participation'], row['previous_award'], row['project_name'], row['reusing_project'], row['file_uploaded'], row['id']
                 ))
         elif table_name == "groups":
             for _, row in df_to_save.iterrows():
                 cur.execute("""
                     UPDATE groups 
                     SET group_name=%s, topic_introduction=%s, 
-                        description_existing_members=%s, expected_members=%s, previous_participation=%s, previous_award=%s, project_name=%s, reusing_project=%s
+                        description_existing_members=%s, expected_members=%s, previous_participation=%s, previous_award=%s, project_name=%s, reusing_project=%s, file_uploaded=%s
                     WHERE id=%s
                 """, (
                     row['group_name'], row['topic_introduction'], 
-                    row['description_existing_members'], row['expected_members'], row['previous_participation'], row['previous_award'], row['project_name'], row['reusing_project'], row['id']
+                    row['description_existing_members'], row['expected_members'], row['previous_participation'], row['previous_award'], row['project_name'], row['reusing_project'], row['file_uploaded'], row['id']
                 ))
         conn.commit()
     except Exception as e:
@@ -135,9 +135,9 @@ def main():
             member_filter = st.selectbox(
                 "Filter View",
                 options=[
-                    "All Members", 
-                    "Members Without Group", 
-                    "Confirmed Team Members", 
+                    "All Members",
+                    "Members Without Group",
+                    "Confirmed Team Members",
                     "Pending Team Requests"
                 ]
             )
@@ -145,9 +145,9 @@ def main():
         conn = get_connection()
         try:
             query = """
-                SELECT m.*, g.group_name as team_name 
-                FROM members m 
-                LEFT JOIN groups g ON m.group_link = g.id::text 
+                SELECT m.*, g.group_name as team_name
+                FROM members m
+                LEFT JOIN groups g ON m.group_link = g.id::text
                 ORDER BY g.group_name ASC NULLS LAST, m.name ASC
             """
             df = pd.read_sql(query, conn)
@@ -190,7 +190,8 @@ def main():
             "previous_participation": st.column_config.TextColumn("Previous Participation"),
             "previous_award": st.column_config.TextColumn("Previous Award"),
             "project_name": st.column_config.TextColumn("Project Name"),
-            "reusing_project": st.column_config.TextColumn("Reusing Project")
+            "reusing_project": st.column_config.TextColumn("Reusing Project"),
+            "file_uploaded": st.column_config.SelectboxColumn("File Uploaded", options=[True, False], help="Select the upload status")
         }
 
         cols = df.columns.tolist()
@@ -221,19 +222,19 @@ def main():
         conn = get_connection()
         try:
             query_teams = """
-                SELECT 
-                    id, is_complete, group_name, description_existing_members, 
-                    expected_members, topic_introduction, team_leader_email, 
-                    previous_participation, previous_award, project_name, reusing_project
-                FROM groups 
+                SELECT
+                    id, is_complete, group_name, description_existing_members,
+                    expected_members, topic_introduction, team_leader_email,
+                    previous_participation, previous_award, project_name, reusing_project, file_uploaded
+                FROM groups
                 ORDER BY id ASC
             """
             df_teams = pd.read_sql(query_teams, conn)
             
             query_members = """
-                SELECT group_link, name, email, status 
-                FROM members 
-                WHERE group_link IS NOT NULL 
+                SELECT group_link, name, email, status
+                FROM members
+                WHERE group_link IS NOT NULL
                 AND status != 'pending'
                 ORDER BY CASE WHEN status = 'Leader' THEN 1 ELSE 2 END, name ASC
             """
@@ -290,7 +291,8 @@ def main():
             "previous_participation": st.column_config.TextColumn("Previous Participation"),
             "previous_award": st.column_config.TextColumn("Previous Award"),
             "project_name": st.column_config.TextColumn("Project Name"),
-            "reusing_project": st.column_config.TextColumn("Reusing Project")
+            "reusing_project": st.column_config.TextColumn("Reusing Project"),
+            "file_uploaded": st.column_config.SelectboxColumn("File Uploaded", options=[True, False], help="Select the upload status")
         }
 
         member_cols_config = {}

@@ -192,6 +192,11 @@ def main():
         
     with col_h2:
         reusing_project = st.selectbox("Reusing/Building on past project for 2026?", options=["No", "Yes"], key="hist_reuse_group", disabled=hist_disabled)
+    file_uploaded = None
+    if reusing_project == "Yes":
+        st.markdown("Please upload the complete proposal of the original works from previous competitions to the following link (name it 'team leader name + project name'): https://v2.fangcloud.com/collection/733ad45be8035b3cfb2950b2b77e6715")
+        st.info("Check this box if the file has been succesfully uploaded")
+        file_uploaded = st.checkbox("File has been succesfuly uploaded", key="file_checkbox")
 
     st.divider()
 
@@ -253,13 +258,13 @@ def main():
                         INSERT INTO groups (
                             team_leader_email, is_complete, description_existing_members, 
                             expected_members, group_name, topic_introduction,
-                            previous_participation, previous_award, project_name, reusing_project
+                            previous_participation, previous_award, project_name, reusing_project, file_uploaded
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
                     """, (
                         leader_data['email'], is_complete, description_existing_members, 
                         expected_members, group_name, topic_introduction,
-                        prev_participation, prev_award, project_name, reusing_project
+                        prev_participation, prev_award, project_name, reusing_project, file_uploaded
                     ))
                     group_id = cur.fetchone()[0]
 

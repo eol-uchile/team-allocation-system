@@ -92,6 +92,11 @@ def main():
         project_name = st.text_input("Project Name", key="hist_proj_name", disabled=hist_disabled)        
     with col_h2:
         reusing_project = st.selectbox("Reusing project for 2026?", options=["No", "Yes"], key="hist_reuse", disabled=hist_disabled)
+    file_uploaded = None
+    if reusing_project == "Yes":
+        st.markdown("Please upload the complete proposal of the original works from previous competitions to the following link (name it 'team leader name + project name'): https://v2.fangcloud.com/collection/733ad45be8035b3cfb2950b2b77e6715")
+        st.info("Check this box if the file has been succesfully uploaded")
+        file_uploaded = st.checkbox("File has been succesfuly uploaded", key="file_checkbox")
 
     st.divider()
     st.markdown("### Profile Details")
@@ -129,15 +134,15 @@ def main():
                         name, email, nationality, gender, university, university_country, 
                         department, major, education_level, personal_profile, teammate_profile, 
                         research_topic, phone_number, status, registration_type,
-                        previous_participation, previous_award, project_name, reusing_project
+                        previous_participation, previous_award, project_name, reusing_project, file_uploaded
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """, (
                     user_data['name'], user_data['email'], user_data['nat'], user_data['gender'],
                     user_data['university'], uni_country, user_data['dept'],
                     user_data['major'], user_data['ed_level'], personal_profile,
                     teammate_profile, research_topic, user_data['phone'], "", "individual",
-                    prev_participation, prev_award, project_name, reusing_project
+                    prev_participation, prev_award, project_name, reusing_project, file_uploaded
                 ))
                 with st.spinner():
                     conn.commit()
