@@ -2,7 +2,25 @@ import streamlit as st
 import pandas as pd
 from db import get_connection, release_connection
 
+FORMS_PASSWORD = st.secrets["FORMS_PASSWORD"]
+
+def check_registration_access():
+    if st.session_state.get("public_authenticated", False):
+        return True
+    st.title("Registration Access")
+    code_input = st.text_input("Password", type="password")
+    if st.button("Enter"):
+        if code_input == FORMS_PASSWORD:
+            st.session_state.public_authenticated = True
+            st.rerun()
+        else:
+            st.error("Invalid Password")
+    return False
+
 def main():
+    if not check_registration_access():
+        st.stop()
+
     group_id = st.query_params.get("group_id")
 
     if not group_id:
@@ -39,10 +57,12 @@ def main():
             SELECT name, nationality, university, department, major, education_level, status
             FROM members 
             WHERE group_link = %s
+            AND status IN ('Leader', 'Mentoring Recorder', 'Member', 'N Member')
             ORDER BY CASE 
                 WHEN status = 'Leader' THEN 1 
                 WHEN status = 'Mentoring Recorder' THEN 2 
-                ELSE 3 END ASC
+                WHEN status = 'Member' THEN 3
+                ELSE 4 END ASC
         """, (group_id,))
         members = cur.fetchall()
         
