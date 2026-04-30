@@ -249,8 +249,8 @@ def main():
         for idx, team in df_teams.iterrows():
             team_id = str(team['id'])
             team_mems = df_members[df_members['group_link'] == team_id]
-            regulars = team_mems[team_mems['status'] != 'N member'].reset_index()
-            n_members = team_mems[team_mems['status'] == 'N member'].reset_index()
+            regulars = team_mems[team_mems['status'] != 'N Member'].reset_index()
+            n_members = team_mems[team_mems['status'] == 'N Member'].reset_index()
             
             row_data = {}
             
